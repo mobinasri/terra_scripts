@@ -49,6 +49,7 @@ def download_uri(x):
             storage_client.download_blob_to_file(blob, f)
         return object_name
     except Exception as e:
+        print("Error for ", uri)
         print(e)
         return False
 
@@ -62,6 +63,7 @@ def get_size_uri(uri):
         blob = bucket.get_blob(blob_name)
         return blob.size
     except Exception as e:
+        print("Error for ", uri)
         print(e)
         return False
 
@@ -134,23 +136,36 @@ def main():
                 if is_external(entity, bucket_name) and download_external == False:
                     continue
                 entity_dir = os.path.join(dir_path, row_name, col_name)
-                total_size += get_size_uri(entity)
+                # skip if uri does not exist
+                if get_size_uri(entity) == False:
+                    print(f"[{get_time()}] Entry does not exist so skipped:\t{row_name} | {col_name}", file=sys.stdout)
+                    continue
+                else:
+                    total_size += get_size_uri(entity)
                 # add uri and path to the download list
                 download_list.append((entity, entity_dir))
                 print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
                 sys.stdout.flush()
             # if the entity is a list of gs uri
             elif isinstance(entity, list) and isinstance(entity[0], str) and entity[0].startswith("gs://"):
+                added_elements = 0
                 for i, element in enumerate(entity):
                     # check if this uri is external
                     if is_external(element, bucket_name) and download_external == False:
                         continue
                     element_dir = os.path.join(dir_path, row_name, col_name, str(i))
-                    total_size += get_size_uri(element)
+                    # skip if uri does not exist
+                    if get_size_uri(element) == False:
+                        print(f"[{get_time()}] Element does not exist so skipped:\t{row_name} | {col_name} | {i}", file=sys.stdout)
+                        continue
+                    else:
+                        added_elements += 1
+                        total_size += get_size_uri(element)
                     # add uri and path to the download list
                     download_list.append((element, element_dir))
-                print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
-                sys.stdout.flush()
+                if added_elements > 0:
+                    print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
+                    sys.stdout.flush()
             # if the entity is not a gs uri
             # it should be either a numeric or a string
             elif (isinstance(entity, list) and isinstance(entity[0], str) and entity[0] != "") or (isinstance(entity, str) and entity != ""):
