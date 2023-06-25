@@ -68,7 +68,7 @@ def write_to_text(entities, entity_path):
         f.write("\n")
 
 def main():
-    parser = argparse.ArgumentParser(description='Pull terra table')
+    parser = argparse.ArgumentParser(description='Pull files from a terra table')
     parser.add_argument('--workspace', type=str, help='Workspace')
     parser.add_argument('--workspace-namespace', type=str, help='Workspace namespace (same as billing project)')
     parser.add_argument('--table-name', type=str, help='Table name')
@@ -76,7 +76,7 @@ def main():
     parser.add_argument('--exclude-rows', type=str, help='[optional] Path to a text file with the list of row names to exclude (one row name per line)')
     parser.add_argument('--download-external', action='store_true', help='Download files from other workspaces if they exist in the table (and whose row and column are not excluded)')
     parser.add_argument('--dir', type=str, help='Output directory')
-    parser.add_argument('--threads', type=int, default=4, help='Number of threads [default = 4]')
+    parser.add_argument('--threads', type=int, default=4, help='Number of IO threads [default = 4]')
     parser.add_argument('--no-prompt', action='store_true', help='No prompt for checking size of the whole table')
 
     args = parser.parse_args()
