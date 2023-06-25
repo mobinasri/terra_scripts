@@ -1,5 +1,42 @@
 # terra_scripts
+## Download all files from a Terra table 
 
+1. Install Anaconda3 locally using this link
+https://docs.anaconda.com/free/anaconda/install/index.html
+
+2. Make a conda environment and install neccessary packages
+```
+conda create --name terra_env python=3.6
+conda activate terra_env
+pip install --upgrade pip pandas numpy google-cloud-storage terra_notebook_utils terra_pandas
+```
+
+If you encounter issues about initiating your shell before activating your environemnt you have to put the command below in ~/.bash_profile and login again.
+```
+source ${ANACONDA3_PATH}/etc/profile.d/conda.sh
+```
+You can find `${ANACONDA3_PATH}` using the base environment in `conda info`
+
+3. Before runing the script make sure to login to your google account and set your `${PROJECT_ID}` (the name of the billing project)
+```
+gcloud auth login
+gcloud config set project ${PROJECT_ID}
+```
+
+4. Clone repo and run `pull_terra_table.py`
+
+```
+git clone https://github.com/mobinasri/terra_scripts
+python3 terra_scripts/pull_terra_table.py \
+  --workspace ${WORKSPACE} \
+  --workspace-namespace ${WORKSPACE_NAMESPACE} \
+  --table-name ${TABLE_NAME} \
+  --exclude-columns col_names.txt \
+  --exclude-rows row_names.txt \
+  --dir ${DIRECTORY}
+```
+`--exclude-columns col_names.txt` and `--exclude-rows row_names.txt` are optional.
+The full documentation is as below
 ```
 Pull terra table
 
