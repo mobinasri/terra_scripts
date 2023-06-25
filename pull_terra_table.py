@@ -53,13 +53,17 @@ def download_uri(x):
         return False
 
 def get_size_uri(uri):
-    storage_client = storage.Client()
-    bucket_name = get_bucket_name(uri)
-    blob_name = get_blob_name(uri)
-    object_name = get_object_name(uri)
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.get_blob(blob_name)
-    return blob.size
+    try:
+        storage_client = storage.Client()
+        bucket_name = get_bucket_name(uri)
+        blob_name = get_blob_name(uri)
+        object_name = get_object_name(uri)
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.get_blob(blob_name)
+        return blob.size
+    except Exception as e:
+        print(e)
+        return False
 
 
 def write_to_text(entities, entity_path):
@@ -111,13 +115,13 @@ def main():
 
     total_size = 0
 
-    for col_name in table.columns:
+    for row_name in table.index:
         # skip this column if should be excluded
-        if col_name in column_exclude:
+        if row_name in row_exclude:
             continue
-        for row_name in table.index:
+        for col_name in table.columns:
             # skip this row if should be excluded
-            if row_name in row_exclude:
+            if col_name in column_exclude:
                 continue
             entity = table[col_name][row_name]
             # skip it if the entity is not defined
