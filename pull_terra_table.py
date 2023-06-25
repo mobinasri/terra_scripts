@@ -9,6 +9,8 @@ from google.cloud import storage
 import os
 
 def read_list(file_path):
+    if file_path == None:
+        return []
     with open(file_path, "r") as f:
         return f.read().split()
 
@@ -32,8 +34,6 @@ def download_uri(uri, dir_path):
         bucket_name = get_bucket_name(uri)
         blob_name = get_blob_name(uri)
         object_name = get_object_name(uri)
-
-        print("bu=", bucket_name, "blob=",blob_name, object_name)
         bucket = storage_client.bucket(bucket_name)
         blob = bucket.blob(blob_name)
         file_path = os.path.join(dir_path, object_name)
@@ -52,10 +52,10 @@ def write_to_text(entities, entity_path):
 def main():
     parser = argparse.ArgumentParser(description='Pull terra table')
     parser.add_argument('--workspace', type=str, help='Workspace')
-    parser.add_argument('--workspace-namespace', type=str, help='Workspace namespace')
+    parser.add_argument('--workspace-namespace', type=str, help='Workspace namespace (same as billing project)')
     parser.add_argument('--table-name', type=str, help='Table name')
-    parser.add_argument('--exclude-columns', type=str, help='Path to a text file with the list of column names to exclude (one column name per line)')
-    parser.add_argument('--exclude-rows', type=str, help='Path to a text file with the list of row names to exclude (one row name per line)')
+    parser.add_argument('--exclude-columns', type=str, help='[optional] Path to a text file with the list of column names to exclude (one column name per line)')
+    parser.add_argument('--exclude-rows', type=str, help='[optional] Path to a text file with the list of row names to exclude (one row name per line)')
     parser.add_argument('--download-external', action='store_true', help='Download files from other workspaces if they exist in the table (and whose row and column are not excluded)')
     parser.add_argument('--dir', type=str, help='Output directory')
     args = parser.parse_args()
@@ -119,7 +119,7 @@ def main():
                     write_to_text(entity, entity_path)
                 else:
                     write_to_text([entity], entity_path)
-            print(f"{row_name}:{col_name} is pulled.")
+            print(f"*{row_name}:{col_name} is pulled.")
 
 
 if __name__ == "__main__":
