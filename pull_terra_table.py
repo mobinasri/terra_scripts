@@ -138,6 +138,7 @@ def main():
                 # add uri and path to the download list
                 download_list.append((entity, entity_dir))
                 print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
+                sys.stdout.flush()
             # if the entity is a list of gs uri
             elif isinstance(entity, list) and isinstance(entity[0], str) and entity[0].startswith("gs://"):
                 for i, element in enumerate(entity):
@@ -149,6 +150,7 @@ def main():
                     # add uri and path to the download list
                     download_list.append((element, element_dir))
                 print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
+                sys.stdout.flush()
             # if the entity is not a gs uri
             # it should be either a numeric or a string
             elif (isinstance(entity, list) and isinstance(entity[0], str) and entity[0] != "") or (isinstance(entity, str) and entity != ""):
@@ -168,6 +170,8 @@ def main():
         if proceed == 'n':
             print(f"[{get_time()}] Downloading aborted.")
             sys.exit()
+
+    sys.stdout.flush()
 
     # make a pull of threads for downloading files in parallel
     with ThreadPoolExecutor(max_workers=threads) as executor:
