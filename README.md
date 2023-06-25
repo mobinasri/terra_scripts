@@ -34,27 +34,30 @@ python3 terra_scripts/pull_terra_table.py \
   --exclude-columns col_names.txt \
   --exclude-rows row_names.txt \
   --dir ${DIRECTORY}
+  --threads ${THREADS_IO}
 ```
 `--exclude-columns col_names.txt` and `--exclude-rows row_names.txt` are optional.
 The full documentation is as below
 ```
-Pull terra table
+Pull files from a terra table
 
 optional arguments:
   -h, --help            show this help message and exit
   --workspace WORKSPACE
                         Workspace
   --workspace-namespace WORKSPACE_NAMESPACE
-                        Workspace namespace
+                        Workspace namespace (same as billing project)
   --table-name TABLE_NAME
                         Table name
   --exclude-columns EXCLUDE_COLUMNS
-                        Path to a text file with the list of column names to
-                        exclude (one column name per line)
+                        [optional] Path to a text file with the list of column
+                        names to exclude (one column name per line)
   --exclude-rows EXCLUDE_ROWS
-                        Path to a text file with the list of row names to
-                        exclude (one row name per line)
+                        [optional] Path to a text file with the list of row
+                        names to exclude (one row name per line)
   --download-external   Download files from other workspaces if they exist in
                         the table (and whose row and column are not excluded)
   --dir DIR             Output directory
+  --threads THREADS     Number of IO threads [default = 4]
+  --no-prompt           No prompt for checking size of the whole table
 ```
