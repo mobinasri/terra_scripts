@@ -8,6 +8,10 @@ import terra_notebook_utils as tnu
 from google.cloud import storage
 import os
 from concurrent.futures import ThreadPoolExecutor 
+import datetime
+
+def get_time():
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def read_list(file_path):
     if file_path == None:
@@ -31,6 +35,7 @@ def is_external(uri, workspace_bucket_name):
 def download_uri(x):
     uri = x[0]
     dir_path = x[1]
+    os.makedirs(dir_path, exist_ok=True)
     try:
         # make a bucket object for downloading
         storage_client = storage.Client()
@@ -38,14 +43,23 @@ def download_uri(x):
         blob_name = get_blob_name(uri)
         object_name = get_object_name(uri)
         bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
+        blob = bucket.get_blob(blob_name)
         file_path = os.path.join(dir_path, object_name)
         with open(file_path,'wb') as f:
             storage_client.download_blob_to_file(blob, f)
-        print(f"Object downloaded:\t{object_name}", file=sys.stdout)
+        return object_name
     except Exception as e:
         print(e)
         return False
+
+def get_size_uri(uri):
+    storage_client = storage.Client()
+    bucket_name = get_bucket_name(uri)
+    blob_name = get_blob_name(uri)
+    object_name = get_object_name(uri)
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.get_blob(blob_name)
+    return blob.size
 
 
 def write_to_text(entities, entity_path):
@@ -63,7 +77,11 @@ def main():
     parser.add_argument('--download-external', action='store_true', help='Download files from other workspaces if they exist in the table (and whose row and column are not excluded)')
     parser.add_argument('--dir', type=str, help='Output directory')
     parser.add_argument('--threads', type=int, default=4, help='Number of threads [default = 4]')
+    parser.add_argument('--no-prompt', action='store_true', help='No prompt for checking size of the whole table')
+
     args = parser.parse_args()
+
+    # take arguments
     workspace = args.workspace
     workspace_namespace = args.workspace_namespace
     table_name = args.table_name
@@ -72,6 +90,7 @@ def main():
     download_external = args.download_external
     dir_path = args.dir
     threads = args.threads
+    no_prompt = args.no_prompt
     
     # read row names and column names to exclude
     row_exclude = read_list(row_exclude_path)
@@ -90,6 +109,8 @@ def main():
     # each tuple is (uri, dir_path)
     download_list = []
 
+    total_size = 0
+
     for col_name in table.columns:
         # skip this column if should be excluded
         if col_name in column_exclude:
@@ -101,6 +122,7 @@ def main():
             entity = table[col_name][row_name]
             # skip it if the entity is not defined
             if not isinstance(entity, list) and pd.isna(entity):
+                print(f"[{get_time()}] Entry is NaN so skipped:\t{row_name} | {col_name}", file=sys.stdout)
                 continue
             # if the entity is a single gs uri
             if isinstance(entity, str) and entity.startswith("gs://"):
@@ -108,9 +130,10 @@ def main():
                 if is_external(entity, bucket_name) and download_external == False:
                     continue
                 entity_dir = os.path.join(dir_path, row_name, col_name)
-                os.makedirs(entity_dir, exist_ok=True)
+                total_size += get_size_uri(entity)
                 # add uri and path to the download list
                 download_list.append((entity, entity_dir))
+                print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
             # if the entity is a list of gs uri
             elif isinstance(entity, list) and isinstance(entity[0], str) and entity[0].startswith("gs://"):
                 for i, element in enumerate(entity):
@@ -118,12 +141,13 @@ def main():
                     if is_external(element, bucket_name) and download_external == False:
                         continue
                     element_dir = os.path.join(dir_path, row_name, col_name, str(i))
-                    os.makedirs(element_dir, exist_ok=True)
+                    total_size += get_size_uri(element)
                     # add uri and path to the download list
                     download_list.append((element, element_dir))
+                print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
             # if the entity is not a gs uri
             # it should be either a numeric or a string
-            else:
+            elif (isinstance(entity, list) and isinstance(entity[0], str) and entity[0] != "") or (isinstance(entity, str) and entity != ""):
                 entity_dir = os.path.join(dir_path, row_name, col_name)
                 os.makedirs(entity_dir, exist_ok=True)
                 entity_path = os.path.join(entity_dir, f'{col_name}.txt')
@@ -131,12 +155,23 @@ def main():
                     write_to_text(entity, entity_path)
                 else:
                     write_to_text([entity], entity_path)
-            print(f"Entry added to list:\t{row_name} | {col_name}", file=sys.stdout)
-    
+                print(f"[{get_time()}] Entry is written in a text file:\t{row_name} | {col_name}", file=sys.stdout)
+    if not no_prompt:
+        proceed = input(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB. Do you want to proceed [y/n]?")
+        while proceed not in ['y', 'n']:
+            print(f"[{get_time()}] Please enter either y or n.")
+            proceed = input(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB. Do you want to proceed [y/n]?")
+        if proceed == 'n':
+            print(f"[{get_time()}] Downloading aborted.")
+            sys.exit()
+
     # make a pull of threads for downloading files in parallel
     with ThreadPoolExecutor(max_workers=threads) as executor:
         results = executor.map(download_uri, download_list)
+    print(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB. Initiating thread pool for downloading ...", file=sys.stdout)
     for res in results:
+        print(f"[{get_time()}] Object is downloaded:\t{res}", file=sys.stdout)
+        sys.stdout.flush()
         pass
 if __name__ == "__main__":
     main()
