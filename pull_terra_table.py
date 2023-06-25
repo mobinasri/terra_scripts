@@ -7,6 +7,7 @@ import terra_pandas as tp
 import terra_notebook_utils as tnu
 from google.cloud import storage
 import os
+from concurrent.futures import ThreadPoolExecutor 
 
 def read_list(file_path):
     if file_path == None:
@@ -27,7 +28,9 @@ def get_object_name(uri):
 def is_external(uri, workspace_bucket_name):
     return get_bucket_name(uri) != workspace_bucket_name
 
-def download_uri(uri, dir_path):
+def download_uri(x):
+    uri = x[0]
+    dir_path = x[1]
     try:
         # make a bucket object for downloading
         storage_client = storage.Client()
@@ -39,6 +42,7 @@ def download_uri(uri, dir_path):
         file_path = os.path.join(dir_path, object_name)
         with open(file_path,'wb') as f:
             storage_client.download_blob_to_file(blob, f)
+        print(f"Object downloaded:\t{object_name}", file=sys.stdout)
     except Exception as e:
         print(e)
         return False
@@ -58,6 +62,7 @@ def main():
     parser.add_argument('--exclude-rows', type=str, help='[optional] Path to a text file with the list of row names to exclude (one row name per line)')
     parser.add_argument('--download-external', action='store_true', help='Download files from other workspaces if they exist in the table (and whose row and column are not excluded)')
     parser.add_argument('--dir', type=str, help='Output directory')
+    parser.add_argument('--threads', type=int, default=4, help='Number of threads [default = 4]')
     args = parser.parse_args()
     workspace = args.workspace
     workspace_namespace = args.workspace_namespace
@@ -66,10 +71,12 @@ def main():
     column_exclude_path = args.exclude_columns
     download_external = args.download_external
     dir_path = args.dir
+    threads = args.threads
     
     # read row names and column names to exclude
     row_exclude = read_list(row_exclude_path)
     column_exclude = read_list(column_exclude_path)
+
 
     # pull the table
     table = tp.table_to_dataframe(table_name, None, workspace, workspace_namespace)
@@ -78,6 +85,10 @@ def main():
 
     # get the bucket name
     bucket_name = tnu.workspace.get_workspace_bucket(workspace)
+
+    # create a list of tuples for downloading files by a pool of threads
+    # each tuple is (uri, dir_path)
+    download_list = []
 
     for col_name in table.columns:
         # skip this column if should be excluded
@@ -88,7 +99,6 @@ def main():
             if row_name in row_exclude:
                 continue
             entity = table[col_name][row_name]
-            print(entity, type(entity))
             # skip it if the entity is not defined
             if not isinstance(entity, list) and pd.isna(entity):
                 continue
@@ -99,7 +109,8 @@ def main():
                     continue
                 entity_dir = os.path.join(dir_path, row_name, col_name)
                 os.makedirs(entity_dir, exist_ok=True)
-                download_uri(entity, entity_dir)
+                # add uri and path to the download list
+                download_list.append((entity, entity_dir))
             # if the entity is a list of gs uri
             elif isinstance(entity, list) and isinstance(entity[0], str) and entity[0].startswith("gs://"):
                 for i, element in enumerate(entity):
@@ -108,7 +119,8 @@ def main():
                         continue
                     element_dir = os.path.join(dir_path, row_name, col_name, str(i))
                     os.makedirs(element_dir, exist_ok=True)
-                    download_uri(element, element_dir)
+                    # add uri and path to the download list
+                    download_list.append((element, element_dir))
             # if the entity is not a gs uri
             # it should be either a numeric or a string
             else:
@@ -119,8 +131,12 @@ def main():
                     write_to_text(entity, entity_path)
                 else:
                     write_to_text([entity], entity_path)
-            print(f"*{row_name}:{col_name} is pulled.")
-
-
+            print(f"Entry added to list:\t{row_name} | {col_name}", file=sys.stdout)
+    
+    # make a pull of threads for downloading files in parallel
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        results = executor.map(download_uri, download_list)
+    for res in results:
+        pass
 if __name__ == "__main__":
     main()
