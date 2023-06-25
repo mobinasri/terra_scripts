@@ -1,4 +1,3 @@
-# terra_scripts
 ## Download all files from a Terra table 
 
 1. Install Anaconda3 locally using this link
