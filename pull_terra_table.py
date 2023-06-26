@@ -7,7 +7,7 @@ import terra_pandas as tp
 import terra_notebook_utils as tnu
 from google.cloud import storage
 import os
-from concurrent.futures import ThreadPoolExecutor 
+from concurrent.futures import ThreadPoolExecutor, as_completed 
 import datetime
 
 def get_time():
@@ -136,12 +136,13 @@ def main():
                 if is_external(entity, bucket_name) and download_external == False:
                     continue
                 entity_dir = os.path.join(dir_path, row_name, col_name)
+                object_size = get_size_uri(entity)
                 # skip if uri does not exist
-                if get_size_uri(entity) == False:
+                if object_size == False:
                     print(f"[{get_time()}] Entry does not exist so skipped:\t{row_name} | {col_name}", file=sys.stdout)
                     continue
                 else:
-                    total_size += get_size_uri(entity)
+                    total_size += object_size
                 # add uri and path to the download list
                 download_list.append((entity, entity_dir))
                 print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
@@ -154,13 +155,14 @@ def main():
                     if is_external(element, bucket_name) and download_external == False:
                         continue
                     element_dir = os.path.join(dir_path, row_name, col_name, str(i))
+                    object_size = get_size_uri(element)
                     # skip if uri does not exist
-                    if get_size_uri(element) == False:
+                    if object_size == False:
                         print(f"[{get_time()}] Element does not exist so skipped:\t{row_name} | {col_name} | {i}", file=sys.stdout)
                         continue
                     else:
                         added_elements += 1
-                        total_size += get_size_uri(element)
+                        total_size += object_size
                     # add uri and path to the download list
                     download_list.append((element, element_dir))
                 if added_elements > 0:
@@ -190,10 +192,11 @@ def main():
 
     # make a pull of threads for downloading files in parallel
     with ThreadPoolExecutor(max_workers=threads) as executor:
-        results = executor.map(download_uri, download_list)
+        futures = [executor.submit(download_uri, x) for x in download_list]
+
     print(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB. Initiating thread pool for downloading ...", file=sys.stdout)
-    for res in results:
-        print(f"[{get_time()}] Object is downloaded:\t{res}", file=sys.stdout)
+    for future in as_completed(futures):
+        print(f"[{get_time()}] Object is downloaded:\t{future.result()}", file=sys.stdout)
         sys.stdout.flush()
         pass
 if __name__ == "__main__":
