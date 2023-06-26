@@ -180,24 +180,26 @@ def main():
                     write_to_text([entity], entity_path)
                 print(f"[{get_time()}] Entry is written in a text file:\t{row_name} | {col_name}", file=sys.stdout)
     if not no_prompt:
-        proceed = input(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB. Do you want to proceed [y/n]?")
+        proceed = input(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB (Count = {len(download_list)}). Do you want to proceed [y/n]?")
         while proceed not in ['y', 'n']:
             print(f"[{get_time()}] Please enter either y or n.")
-            proceed = input(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB. Do you want to proceed [y/n]?")
+            proceed = input(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB (Count = {len(download_list)}). Do you want to proceed [y/n]?")
         if proceed == 'n':
             print(f"[{get_time()}] Downloading aborted.")
             sys.exit()
 
     sys.stdout.flush()
 
+    downloaded_count = 0
     # make a pull of threads for downloading files in parallel
     with ThreadPoolExecutor(max_workers=threads) as executor:
         futures = [executor.submit(download_uri, x) for x in download_list]
 
-    print(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB. Initiating thread pool for downloading ...", file=sys.stdout)
-    for future in as_completed(futures):
-        print(f"[{get_time()}] Object is downloaded:\t{future.result()}", file=sys.stdout)
-        sys.stdout.flush()
-        pass
+        print(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB (Count = {len(download_list)}). Initiating thread pool for downloading ...", file=sys.stdout)
+        for future in as_completed(futures):
+            downloaded_count += 1
+            print(f"[{get_time()}] Object ({downloaded_count}/{len(download_list)}) is downloaded:\t{future.result()}", file=sys.stdout)
+            sys.stdout.flush()
+            pass
 if __name__ == "__main__":
     main()
