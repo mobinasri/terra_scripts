@@ -34,8 +34,9 @@ python3 terra_scripts/pull_terra_table.py \
   --exclude-rows row_names.txt \
   --dir ${DIRECTORY}
   --threads ${THREADS_IO}
+  --no-prompt
 ```
-`--exclude-columns col_names.txt` and `--exclude-rows row_names.txt` are optional.
+`--exclude-columns col_names.txt` and `--exclude-rows row_names.txt` are optional. The program will write the total size of the files to be downloaded and ask you in a prompt if you want proceed. Use `--no-prompt` when the code is not run in an interactive environment (like submitted by sbatch).
 The full documentation is as below
 ```
 Pull files from a terra table
