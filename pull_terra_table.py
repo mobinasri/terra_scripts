@@ -73,6 +73,28 @@ def write_to_text(entities, entity_path):
         f.write("\n".join(np.array(entities).astype(str)))
         f.write("\n")
 
+def add_to_download_list(entity, entity_dir, download_list, bucket_name, download_external):
+    # check if this uri is external
+    if is_external(entity, bucket_name) and download_external == False:
+        return 0
+    object_size = get_size_uri(entity)
+    # skip if uri does not exist
+    if object_size == False:
+        return 0
+    else:
+        # add uri and path to the download list
+        download_list.append((entity, entity_dir))
+        return object_size
+
+def prompt(total_size, total_count):
+    proceed = input(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB (Cost ~ {total_size/1e9 * 0.11}$) (Count = {total_count}). Do you want to proceed [y/n]?")
+    while proceed not in ['y', 'n']:
+        print(f"[{get_time()}] Please enter either y or n.")
+        proceed = input(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB (Cost ~ {total_size/1e9 * 0.11}$) (Count = {total_count}). Do you want to proceed [y/n]?")
+    if proceed == 'n':
+        print(f"[{get_time()}] Downloading aborted.")
+        sys.exit()
+
 def main():
     parser = argparse.ArgumentParser(description='Pull files from a terra table')
     parser.add_argument('--workspace', type=str, help='Workspace')
@@ -132,42 +154,28 @@ def main():
                 continue
             # if the entity is a single gs uri
             if isinstance(entity, str) and entity.startswith("gs://"):
-                # check if this uri is external 
-                if is_external(entity, bucket_name) and download_external == False:
-                    continue
                 entity_dir = os.path.join(dir_path, row_name, col_name)
-                object_size = get_size_uri(entity)
+                object_size = add_to_download_list(entity, entity_dir, download_list, bucket_name, download_external)
+                total_size += object_size
                 # skip if uri does not exist
-                if object_size == False:
+                if object_size == 0:
                     print(f"[{get_time()}] Entry does not exist so skipped:\t{row_name} | {col_name}", file=sys.stdout)
-                    continue
                 else:
-                    total_size += object_size
-                # add uri and path to the download list
-                download_list.append((entity, entity_dir))
-                print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
-                sys.stdout.flush()
+                    print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
             # if the entity is a list of gs uri
             elif isinstance(entity, list) and isinstance(entity[0], str) and entity[0].startswith("gs://"):
                 added_elements = 0
                 for i, element in enumerate(entity):
-                    # check if this uri is external
-                    if is_external(element, bucket_name) and download_external == False:
-                        continue
                     element_dir = os.path.join(dir_path, row_name, col_name, str(i))
-                    object_size = get_size_uri(element)
+                    object_size = add_to_download_list(element, element_dir, download_list, bucket_name, download_external)
+                    total_size += object_size
                     # skip if uri does not exist
-                    if object_size == False:
+                    if object_size == 0:
                         print(f"[{get_time()}] Element does not exist so skipped:\t{row_name} | {col_name} | {i}", file=sys.stdout)
-                        continue
                     else:
                         added_elements += 1
-                        total_size += object_size
-                    # add uri and path to the download list
-                    download_list.append((element, element_dir))
                 if added_elements > 0:
                     print(f"[{get_time()}] Entry is added to the download list:\t{row_name} | {col_name}", file=sys.stdout)
-                    sys.stdout.flush()
             # if the entity is not a gs uri
             # it should be either a numeric or a string
             elif (isinstance(entity, list) and isinstance(entity[0], str) and entity[0] != "") or (isinstance(entity, str) and entity != ""):
@@ -179,14 +187,10 @@ def main():
                 else:
                     write_to_text([entity], entity_path)
                 print(f"[{get_time()}] Entry is written in a text file:\t{row_name} | {col_name}", file=sys.stdout)
+            sys.stdout.flush()
+
     if not no_prompt:
-        proceed = input(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB (Count = {len(download_list)}). Do you want to proceed [y/n]?")
-        while proceed not in ['y', 'n']:
-            print(f"[{get_time()}] Please enter either y or n.")
-            proceed = input(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB (Count = {len(download_list)}). Do you want to proceed [y/n]?")
-        if proceed == 'n':
-            print(f"[{get_time()}] Downloading aborted.")
-            sys.exit()
+        prompt(total_size, len(download_list))
 
     sys.stdout.flush()
 
@@ -194,8 +198,8 @@ def main():
     # make a pull of threads for downloading files in parallel
     with ThreadPoolExecutor(max_workers=threads) as executor:
         futures = [executor.submit(download_uri, x) for x in download_list]
-
         print(f"[{get_time()}] Total size of the objects to be dowloaded = {total_size/1e9} GB (Count = {len(download_list)}). Initiating thread pool for downloading ...", file=sys.stdout)
+
         for future in as_completed(futures):
             downloaded_count += 1
             print(f"[{get_time()}] Object ({downloaded_count}/{len(download_list)}) is downloaded:\t{future.result()}", file=sys.stdout)
